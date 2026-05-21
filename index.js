@@ -101,6 +101,12 @@ async function run() {
                 AppointmentDate: new Date()
             });
             response.send(AppointmentResult);
+        });
+
+        app.get('/appointment/:userid', async (request, response) => {
+            const { userid } = request.params;
+            const appointment = await DoctorAppointment.find({ userId: userid }).toArray();
+            response.send(appointment);
         })
     } finally {
         // Ensures that the client will close when you finish/error
