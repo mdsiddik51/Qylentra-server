@@ -3,20 +3,15 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
 dotenv.config();
 const app = express();
 app.use(cors());
 const port = process.env.PROT || 8080;
 
 
-
-// user = Qylentra-A9
-// pass = agR1yrhXN1VK4o2j
-
-
 const uri = process.env.MDBURI;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -25,10 +20,41 @@ const client = new MongoClient(uri, {
     }
 });
 
+const validate = (request, response, next) => {
+    next();
+
+}
+
+const VarifyToken = async (request, response, next) => {
+    const { authorization } = request.headers;
+    const token = authorization.split(' ')[1];
+    if (!token) {
+        return response.status(401).json({
+            message: "Unauthorized",
+        });
+    }
+    try {
+        const JWKS = createRemoteJWKSet(
+            new URL(`${process.env.CLIENT_URI}/api/auth/jwks`)
+        );
+        const { payload } = await jwtVerify(token, JWKS,);
+        request.user = payload;
+
+
+        next();
+    } catch (error) {
+        console.error('Token validation failed:', error)
+        return response.status(401).json({
+            message: "Unauthorized",
+        });
+    }
+
+}
+
 async function run() {
     try {
-        // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+
+        // await client.connect();
         // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -40,9 +66,9 @@ async function run() {
             const result = await corsor.toArray();
             response.send(result);
         });
-        app.get('/doctor/:doctorid', async (request, response) => {
-            
+        app.get('/doctor/:doctorid', VarifyToken, async (request, response) => {
             const id = request.params.doctorid;
+            console.log(request.user)
             const quary = {
                 _id: new ObjectId(id),
             };
