@@ -21,36 +21,34 @@ const client = new MongoClient(uri, {
     }
 });
 
-const validate = (request, response, next) => {
-    next();
-
-}
 
 const VarifyToken = async (request, response, next) => {
-    const { authorization } = request.headers;
-    const token = authorization.split(' ')[1];
-    if (!token) {
-        return response.status(401).json({
-            message: "Unauthorized",
-        });
-    }
     try {
-        const JWKS = createRemoteJWKSet(
-            new URL(`${process.env.CLIENT_URI}/api/auth/jwks`)
-        );
-        const { payload } = await jwtVerify(token, JWKS,);
-        request.user = payload;
+        const authorization = request.headers.authorization;
 
+        if (!authorization) {
+            return response.status(401).json({
+                message: "Unauthorized Access"
+            });
+        }
+
+        const token = authorization.split(" ")[1];
+
+        if (!token) {
+            return response.status(401).json({
+                message: "Token Missing"
+            });
+        }
 
         next();
+
     } catch (error) {
-        console.error('Token validation failed:', error)
-        return response.status(401).json({
-            message: "Unauthorized",
+
+        response.status(500).json({
+            message: "Internal Server Error"
         });
     }
-
-}
+};
 
 async function run() {
     try {
@@ -68,42 +66,86 @@ async function run() {
             const result = await corsor.toArray();
             response.send(result);
         });
-        app.get('/doctor/:doctorid', VarifyToken, async (request, response) => {
-            const id = request.params.doctorid;
-            console.log(request.user)
-            const quary = {
-                _id: new ObjectId(id),
-            };
-            const data = await doctor.findOne(quary);
-            response.send(data);
+        app.get('/doctor/:doctorid', async (request, response) => {
+            try {
+                const id = request.params.doctorid;
+
+                if (!ObjectId.isValid(id)) {
+                    return response.status(400).json({
+                        message: "Invalid doctor id"
+                    });
+                }
+
+
+                const query = {
+                    _id: new ObjectId(id),
+                };
+
+                const data = await doctor.findOne(query);
+
+                response.json(data);
+
+            } catch (error) {
+
+                response.status(500).json({
+                    message: "Internal server error"
+                });
+            }
         });
 
         app.patch('/booking/:doctorid', VarifyToken, async (request, response) => {
-            const { doctorid } = request.params;
-            const BookingData = request.body;
-            const booking = await doctor.findOne({ _id: new ObjectId(doctorid) });
-            if (!booking) {
-                return response.status(404).json({
-                    message: "No Booking Found",
-                });
-            }
+            try {
 
-            await doctor.updateOne({ _id: new ObjectId(doctorid) },
-                {
-                    $set: {
-                        BookingDate: new Date(),
-                    }
+                const { doctorid } = request.params;
+                const bookingData = request.body;
+
+                if (!ObjectId.isValid(doctorid)) {
+                    return response.status(400).json({
+                        message: "Invalid Doctor ID"
+                    });
                 }
 
-            );
-            const AppointmentResult = await DoctorAppointment.insertOne({
-                ...BookingData,
-                AppointmentDate: new Date()
-            });
-            response.send(AppointmentResult);
-        });
+                const booking = await doctor.findOne({
+                    _id: new ObjectId(doctorid)
+                });
 
-        app.get('/appointment/:userid', async (request, response) => {
+                if (!booking) {
+                    return response.status(404).json({
+                        message: "No Booking Found"
+                    });
+                }
+
+                await doctor.updateOne(
+                    {
+                        _id: new ObjectId(doctorid)
+                    },
+                    {
+                        $set: {
+                            BookingDate: new Date()
+                        }
+                    }
+                );
+
+                const appointmentResult = await DoctorAppointment.insertOne({
+                    ...bookingData,
+                    AppointmentDate: new Date()
+                });
+
+                response.status(200).json({
+                    success: true,
+                    message: "Appointment Booked Successfully",
+                    data: appointmentResult
+                });
+
+            } catch (error) {
+
+
+                response.status(500).json({
+                    message: "Internal Server Error"
+                });
+            }
+        });
+        app.get('/appointment/:userid', VarifyToken, async (request, response) => {
             const { userid } = request.params;
             const appointment = await DoctorAppointment.find({ userId: userid }).toArray();
             response.send(appointment);
