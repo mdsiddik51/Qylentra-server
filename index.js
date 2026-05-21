@@ -7,6 +7,7 @@ const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
 dotenv.config();
 const app = express();
 app.use(cors());
+app.use(express.json());
 const port = process.env.PROT || 8080;
 
 
@@ -60,6 +61,7 @@ async function run() {
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
         const db = client.db('Qylentra');
         const doctor = db.collection('doctor');
+        const DoctorAppointment = db.collection('doctorAppointment');
 
         app.get('/doctor', async (request, response) => {
             const corsor = doctor.find();
@@ -74,6 +76,31 @@ async function run() {
             };
             const data = await doctor.findOne(quary);
             response.send(data);
+        });
+
+        app.patch('/booking/:doctorid', VarifyToken, async (request, response) => {
+            const { doctorid } = request.params;
+            const BookingData = request.body;
+            const booking = await doctor.findOne({ _id: new ObjectId(doctorid) });
+            if (!booking) {
+                return response.status(404).json({
+                    message: "No Booking Found",
+                });
+            }
+
+            await doctor.updateOne({ _id: new ObjectId(doctorid) },
+                {
+                    $set: {
+                        BookingDate: new Date(),
+                    }
+                }
+
+            );
+            const AppointmentResult = await DoctorAppointment.insertOne({
+                ...BookingData,
+                AppointmentDate: new Date()
+            });
+            response.send(AppointmentResult);
         })
     } finally {
         // Ensures that the client will close when you finish/error
