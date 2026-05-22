@@ -145,11 +145,35 @@ async function run() {
                 });
             }
         });
-        app.get('/appointment/:userid', VarifyToken, async (request, response) => {
+        app.get('/appointments/user/:userid', async (request, response) => {
             const { userid } = request.params;
-            const appointment = await DoctorAppointment.find({ userId: userid }).toArray();
-            response.send(appointment);
-        })
+
+            const appointments = await DoctorAppointment
+                .find({ userId: userid })
+                .toArray();
+            response.send(appointments);
+        });
+        // app.get('/appointment/:id', async (request, response) => {
+        //     const { id } = request.params;
+
+        //     const singleappointment = await DoctorAppointment.findOne({
+        //         _id: new ObjectId(id)
+        //     });
+
+        //     response.send(singleappointment);
+        // });
+
+        app.delete('/appointment/:id', async (request, response) => {
+            const { id } = request.params;
+
+            const query = {
+                _id: new ObjectId(id)
+            };
+
+            const appointmentDelete = await DoctorAppointment.deleteOne(query);
+
+            response.send(appointmentDelete);
+        });
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
