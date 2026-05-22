@@ -3,7 +3,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 dotenv.config();
 const app = express();
 app.use(cors());
@@ -22,40 +22,29 @@ const client = new MongoClient(uri, {
 });
 
 
-const VarifyToken = async (request, response, next) => {
+const JWKS = createRemoteJWKSet(new URL(`${process.env.CLIENT_URI}/api/auth/jwks`));
+
+const verifyToken = async (req, res, next) => {
+    const authHeader = req?.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
     try {
-        const authorization = request.headers.authorization;
-
-        if (!authorization) {
-            return response.status(401).json({
-                message: "Unauthorized Access"
-            });
-        }
-
-        const token = authorization.split(" ")[1];
-
-        if (!token) {
-            return response.status(401).json({
-                message: "Token Missing"
-            });
-        }
-
+        const { payload } = await jwtVerify(token, JWKS);
+        console.log(payload);
         next();
-
     } catch (error) {
-
-        response.status(500).json({
-            message: "Internal Server Error"
-        });
+        return res.status(403).json({ message: "Forbidden" });
     }
 };
 
 async function run() {
     try {
-
-        // await client.connect();
-        // Send a ping to confirm a successful connection
-        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
         const db = client.db('Qylentra');
         const doctor = db.collection('doctor');
@@ -66,7 +55,7 @@ async function run() {
             const result = await corsor.toArray();
             response.send(result);
         });
-        app.get('/doctor/:doctorid', async (request, response) => {
+        app.get('/doctor/:doctorid', verifyToken, async (request, response) => {
             try {
                 const id = request.params.doctorid;
 
@@ -75,27 +64,21 @@ async function run() {
                         message: "Invalid doctor id"
                     });
                 }
-
-
                 const query = {
                     _id: new ObjectId(id),
                 };
 
                 const data = await doctor.findOne(query);
-
                 response.json(data);
-
             } catch (error) {
-
                 response.status(500).json({
                     message: "Internal server error"
                 });
             }
         });
 
-        app.patch('/booking/:doctorid', VarifyToken, async (request, response) => {
+        app.patch('/booking/:doctorid', verifyToken, async (request, response) => {
             try {
-
                 const { doctorid } = request.params;
                 const bookingData = request.body;
 
@@ -104,17 +87,14 @@ async function run() {
                         message: "Invalid Doctor ID"
                     });
                 }
-
                 const booking = await doctor.findOne({
                     _id: new ObjectId(doctorid)
                 });
-
                 if (!booking) {
                     return response.status(404).json({
                         message: "No Booking Found"
                     });
                 }
-
                 await doctor.updateOne(
                     {
                         _id: new ObjectId(doctorid)
@@ -125,12 +105,10 @@ async function run() {
                         }
                     }
                 );
-
                 const appointmentResult = await DoctorAppointment.insertOne({
                     ...bookingData,
                     AppointmentDate: new Date()
                 });
-
                 response.status(200).json({
                     success: true,
                     message: "Appointment Booked Successfully",
@@ -138,14 +116,12 @@ async function run() {
                 });
 
             } catch (error) {
-
-
                 response.status(500).json({
                     message: "Internal Server Error"
                 });
             }
         });
-        app.get('/appointments/user/:userid', async (request, response) => {
+        app.get('/appointments/user/:userid', verifyToken, async (request, response) => {
             const { userid } = request.params;
 
             const appointments = await DoctorAppointment
@@ -153,25 +129,12 @@ async function run() {
                 .toArray();
             response.send(appointments);
         });
-        // app.get('/appointment/:id', async (request, response) => {
-        //     const { id } = request.params;
-
-        //     const singleappointment = await DoctorAppointment.findOne({
-        //         _id: new ObjectId(id)
-        //     });
-
-        //     response.send(singleappointment);
-        // });
-
         app.delete('/appointment/:id', async (request, response) => {
             const { id } = request.params;
-
             const query = {
                 _id: new ObjectId(id)
             };
-
             const appointmentDelete = await DoctorAppointment.deleteOne(query);
-
             response.send(appointmentDelete);
         });
         app.patch('/appointment/:id', async (request, response) => {
@@ -189,9 +152,8 @@ async function run() {
                     date: modifyuser.date,
                     time: modifyuser.time,
                 }
-            }
-
-            const UpdatedAppointment = await DoctorAppointment.updateOne(filter ,Appointment);
+            };
+            const UpdatedAppointment = await DoctorAppointment.updateOne(filter, Appointment);
             response.send(UpdatedAppointment);
         })
     } finally {
@@ -203,7 +165,7 @@ run().catch(console.dir);
 
 
 app.get('/', (req, res) => {
-    res.send('Hello World!');
+    res.send('SERVER IS RUNING!');
 });
 
 app.listen(port, () => {
