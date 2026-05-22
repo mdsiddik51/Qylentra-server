@@ -174,6 +174,26 @@ async function run() {
 
             response.send(appointmentDelete);
         });
+        app.patch('/appointment/:id', async (request, response) => {
+            const id = request.params.id;
+            const filter = {
+                _id: new ObjectId(id),
+            }
+            const modifyuser = request.body;
+            const Appointment = {
+                $set: {
+                    email: modifyuser.email,
+                    patientName: modifyuser.patientName,
+                    gende: modifyuser.gende,
+                    phone: modifyuser.phone,
+                    date: modifyuser.date,
+                    time: modifyuser.time,
+                }
+            }
+
+            const UpdatedAppointment = await DoctorAppointment.updateOne(filter ,Appointment);
+            response.send(UpdatedAppointment);
+        })
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
